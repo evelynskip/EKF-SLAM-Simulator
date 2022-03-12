@@ -1,9 +1,11 @@
+from turtle import shape
 import numpy as np
 import matplotlib.pyplot as plt
 from math import sin, cos, atan2
 import time
 
 class Plotting:
+    
     def __init__(self):
         self.true_x, self.true_y, self.true_theta = [], [], []
         self.pred_x, self.pred_y, self.pred_theta = [], [], []
@@ -23,9 +25,32 @@ class Plotting:
         self.pred_lm_y.append(pred_states[4])
 
         self.time.append(time)
+    @staticmethod
+    def computeTriangle(rob,strRobType):
+        if strRobType == 'Predicted':
+            pos=rob.pred_pos
+        elif strRobType == 'True':
+            pos=rob.true_pos
 
-    def show(self,landmarks,mean,N,window):
+        x = pos[0]
+        y = pos[1]
+        theta = pos[2]
+        p=[]
+        p.append([-rob.length/3, -rob.wheelbase/2]) 
+        p.append([2*rob.length/3, 0]) 
+        p.append([-rob.length/3, rob.wheelbase/2])
+        p.append([-rob.length/3, -rob.wheelbase/2])
+        R = np.asarray([[np.cos(theta),-np.sin(theta)],[np.sin(theta),np.cos(theta)]]).reshape([2,2])
+        p = np.asarray(p)
+        p= R.dot(p.T)
+        p[0][:]=p[0][:]+x
+        p[1][:]=p[1][:]+y
+        p=p.T
+        return p
         
+    def show(self,rob,landmarks,mean,N,window):
+        p_pred = self.computeTriangle(rob,'Predicted')
+        p_true = self.computeTriangle(rob,'True')
         ax=window.figure.add_axes([0.1,0.1,0.8,0.8])
         ax.cla()
         ax.plot(self.true_x, self.true_y, label='True')
@@ -33,6 +58,10 @@ class Plotting:
         ax.plot([mark.x for mark in landmarks], [mark.y for mark in landmarks], 'gX', label='True Landmarks')
         ax.plot([mean[3 + 3 * idx, 0] for idx in range(N)],
                  [mean[4 + 3 * idx, 0] for idx in range(N)], 'rX', label='Predicted Landmarks')
+        #draw the robot
+        for i in range(3):
+            ax.plot([p_pred[i][0],p_pred[i+1][0]],[p_pred[i][1],p_pred[i+1][1]],color = 'orange')
+            ax.plot([p_true[i][0],p_true[i+1][0]],[p_true[i][1],p_true[i+1][1]],color = 'blue')
         ax.legend()
         ax.grid()
         #time.sleep(0.05) 
@@ -63,7 +92,7 @@ class Measurement:
 
 class Robot:
     def __init__(self,vt,wt):
-        self.wheel = 1
+        self.wheelbase = 1
         self.length = 1.5
         self.true_pos = np.array([0.,0.,0.])
         self.pred_pos =np.array([0.,0.,0.])
@@ -104,7 +133,7 @@ class Robot:
 
             self.true_pos=np.array([x, y, theta])
             self.pred_pos=mean[0:3]
-    # def cal_triangle():
+    
         
 
 class EKFSLAM:
@@ -252,7 +281,7 @@ def slam_function(window,DT):
         #update predicted and true pose
         rob.pos_update(Rt,DT,mean)
         #plot 
-        vis.show(landmarks,mean,N,window)
+        vis.show(rob,landmarks,mean,N,window)
         t += DT
 
     # performance(np.round(mean, 3),N)
