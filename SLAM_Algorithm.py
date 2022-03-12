@@ -48,10 +48,10 @@ class Plotting:
         p=p.T
         return p
         
-    def show(self,rob,landmarks,mean,N,window):
+    def show(self,rob,landmarks,mean,N,window,ax):
         p_pred = self.computeTriangle(rob,'Predicted')
         p_true = self.computeTriangle(rob,'True')
-        ax=window.figure.add_axes([0.1,0.1,0.8,0.8])
+        
         ax.cla()
         ax.plot(self.true_x, self.true_y, label='True')
         ax.plot(self.pred_x, self.pred_y, label='Predicted')
@@ -61,14 +61,13 @@ class Plotting:
         #draw the robot
         for i in range(3):
             ax.plot([p_pred[i][0],p_pred[i+1][0]],[p_pred[i][1],p_pred[i+1][1]],color = 'orange')
-            ax.plot([p_true[i][0],p_true[i+1][0]],[p_true[i][1],p_true[i+1][1]],color = 'blue')
+            ax.plot([p_true[i][0],p_true[i+1][0]],[p_true[i][1],p_true[i+1][1]],color = 'cornflowerblue')
         ax.legend()
         ax.grid()
-        #time.sleep(0.05) 
-        plt.pause(0.001)
+        #time.sleep(0.05)
+        if flag == 0: 
+            plt.pause(0.001)
         window.canvas.draw()
-
-
         
 
 class Landmark:
@@ -227,7 +226,9 @@ def sensor(Qt,states,lm,landmarks):
 
 
 
-def slam_function(window,DT):
+def slam_function(window,DT,Plot_flag):
+    global flag
+    flag=Plot_flag
     if DT == '':
         DT=0.1
     else:
@@ -267,7 +268,7 @@ def slam_function(window,DT):
     cov[:3, :3] = np.zeros((3, 3))
 
     # plt.ion()
-    
+    ax=window.figure.add_axes([0.1,0.1,0.8,0.8])
     while t <= tf:
         #update data for plotting
         vis.update(rob.true_pos.flatten().copy(), mean.flatten().copy(), t)# deep copy
@@ -281,10 +282,13 @@ def slam_function(window,DT):
         #update predicted and true pose
         rob.pos_update(Rt,DT,mean)
         #plot 
-        vis.show(rob,landmarks,mean,N,window)
+        if flag == 0:
+            vis.show(rob,landmarks,mean,N,window,ax)
         t += DT
 
     # performance(np.round(mean, 3),N)
     # plt.ioff()
     # plt.show()
+    if flag == 1:
+        vis.show(rob,landmarks,mean,N,window,ax)
     return

@@ -5,8 +5,7 @@ from PyQt5.QtCore import Qt,QRect
 from PyQt5.QtGui import QPixmap,QFont
 from qt_material import apply_stylesheet
 import os
-import SLAM_Dynamic 
-import SLAM_Static
+import SLAM_Algorithm
 # from EKF_SLAM import slam_function
 import matplotlib
 matplotlib.use("Qt5Agg")  # 声明使用QT5
@@ -14,7 +13,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import datetime
-#创建一个matplotlib图形绘制类
+
 
 class EntryWindow(QWidget):
     def __init__(self):
@@ -107,13 +106,13 @@ class EntryWindow(QWidget):
         DT=self.p1_entry.text()
         # p2=self.p2_entry.text()
         # slam_function(DT)
-        SLAM_Dynamic.slam_function(self,DT)
+        SLAM_Algorithm.slam_function(self,DT,0)
 
     
     def begin_ekf_static(self):
         DT=self.p1_entry.text()
         # p2=self.p2_entry.text()
-        SLAM_Static.slam_function(self,DT)
+        SLAM_Algorithm.slam_function(self,DT,1)
     
     def clear_ekf(self):
         self.p1_entry.setText('0.10')
