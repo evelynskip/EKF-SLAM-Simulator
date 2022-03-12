@@ -25,8 +25,6 @@ class Plotting:
         self.time.append(time)
 
     def show(self,landmarks,mean,N,window):
-        #clear the former figure
-        #plt.clf()
         
         ax=window.figure.add_axes([0.1,0.1,0.8,0.8])
         ax.cla()
@@ -41,14 +39,6 @@ class Plotting:
         plt.pause(0.001)
         window.canvas.draw()
 
-        '''        window.F.axes.plot(self.true_x, self.true_y, label='True')
-        window.F.axes.plot(self.pred_x, self.pred_y, label='Predicted')
-        window.F.axes.plot([mark.x for mark in landmarks], [mark.y for mark in landmarks], 'gX', label='True Landmarks')
-        window.F.axes.plot([mean[3 + 3 * idx, 0] for idx in range(N)],
-                 [mean[4 + 3 * idx, 0] for idx in range(N)], 'rX', label='Predicted Landmarks')
-        window.F.axes.legend()
-        window.F.axes.grid()
-        window.F.draw()'''
 
         
 
@@ -71,32 +61,60 @@ class Measurement:
         self.id = j
         self.landmark = lm_from_id(j, landmarks)
 
+class Robot:
+    def __init__(self,vt,wt):
+        self.wheel = 1
+        self.length = 1.5
+        self.true_pos = np.array([0.,0.,0.])
+        self.pred_pos =np.array([0.,0.,0.])
+        self.vt = vt  #linear velocity
+        self.wt = wt  #angular velocity
 
-class EKFSLAM:
-
-    @staticmethod
-    def motion(vt, wt, thet, DT):
+    def motion(self, thet, DT):
         # Avoid divide by zero
-        if wt == 0.:
-            wt += 1e-5
+        if self.wt == 0.:
+            self.wt += 1e-5
 
         # Motion without noise/errors
-        theta_dot = wt * DT
-        x_dot = (-vt/wt) * sin(thet) + (vt/wt) * sin(thet + wt*DT)
-        y_dot = (vt/wt) * cos(thet) - (vt/wt) * cos(thet + wt*DT)
+        theta_dot = self.wt * DT
+        x_dot = (-self.vt/self.wt) * sin(thet) + (self.vt/self.wt) * sin(thet + self.wt*DT)
+        y_dot = (self.vt/self.wt) * cos(thet) - (self.vt/self.wt) * cos(thet + self.wt*DT)
         a = np.array([x_dot, y_dot, theta_dot]).reshape(-1, 1)
 
         # Derivative of above motion model
         b = np.zeros((3, 3))
-        b[0, 2] = (-vt/wt) * cos(thet) + (vt/wt) * cos(thet + wt*DT)
-        b[1, 2] = (-vt/wt) * sin(thet) + (vt/wt) * sin(thet + wt*DT)
+        b[0, 2] = (-self.vt/self.wt) * cos(thet) + (self.vt/self.wt) * cos(thet + self.wt*DT)
+        b[1, 2] = (-self.vt/self.wt) * sin(thet) + (self.vt/self.wt) * sin(thet + self.wt*DT)
 
-        return a, b
+        return a, b    
 
-    def predict(self, N,Rt,Qt, prev_mean=None, prev_cov=None, ut=None, zt=None,DT=None):
+    def pos_update(self,Rt,DT,mean):
+            # motion with guassian noise
+            x, y, theta = self.true_pos
+            v=self.vt
+            w=self.wt
+
+            theta_dot = w
+            x_dot = v*cos(theta)
+            y_dot = v*sin(theta)
+
+            theta += (theta_dot + np.random.normal(0., Rt[2, 2])) * DT
+            x += (x_dot + np.random.normal(0., Rt[0, 0])) * DT
+            y += (y_dot + np.random.normal(0., Rt[1, 1])) * DT
+
+            self.true_pos=np.array([x, y, theta])
+            self.pred_pos=mean[0:3]
+    # def cal_triangle():
+        
+
+class EKFSLAM:
+
+
+    def predict(self, rob,N,Rt,Qt, prev_mean=None, prev_cov=None, ut=None, zt=None,DT=None):
         Fx = np.eye(3, 3*N+3)
 
-        f, g = self.motion(ut[0], ut[1], prev_mean[2, 0], DT)
+        f, g = rob.motion(prev_mean[2, 0], DT)
+        # f, g = self.motion(ut[0], ut[1], prev_mean[2, 0], DT)
         mean = prev_mean + Fx.T @ f
 
         Gt = Fx.T @ g @ Fx + np.eye(3*N+3)
@@ -179,20 +197,6 @@ def sensor(Qt,states,lm,landmarks):
     return z
 
 
-def state_update(states, control,Rt,DT):
-    x, y, theta = states
-    v, w = control
-
-    theta_dot = w
-    x_dot = v*cos(theta)
-    y_dot = v*sin(theta)
-
-    theta += (theta_dot + np.random.normal(0., Rt[2, 2])) * DT
-    x += (x_dot + np.random.normal(0., Rt[0, 0])) * DT
-    y += (y_dot + np.random.normal(0., Rt[1, 1])) * DT
-
-    return np.array([x, y, theta])
-
 
 def slam_function(window,DT):
     if DT == '':
@@ -202,7 +206,7 @@ def slam_function(window,DT):
     t = 0.
     tf = 30.
     INF = 1000.
-
+    # set landmarks
     lm1 = Landmark(2., 3., 0)
     lm2 = Landmark(13., 13., 1)
     lm3 = Landmark(-5., 12., 2)
@@ -216,35 +220,42 @@ def slam_function(window,DT):
     ekf = EKFSLAM()
     vis = Plotting()
 
+    # Rt standard deviation of motion noise
+    # Qt standard deviation of measurement noise
     Rt = .1*np.eye(3)
     Qt = .05*np.eye(3)
 
-    x = 0.
-    y = 0.
-    theta = 0.
-    xr = np.array([x, y, theta]).reshape(-1, 1)
+    #initialize robot
+    # u velocity of the robot
+    u = np.array([2., 0.2])
+    rob=Robot(u[0],u[1])
+
+    # create mean and cov matrix
+    xr = rob.true_pos.reshape(-1, 1) #to a column vector
     xm = np.zeros((3 * N, 1))
     mean = np.vstack((xr, xm))
     cov = INF * np.eye(len(mean))
     cov[:3, :3] = np.zeros((3, 3))
 
-    states = np.array([x, y, theta])
-    u = np.array([2., 0.2])
     # plt.ion()
-
+    
     while t <= tf:
-        vis.update(states.flatten().copy(), mean.flatten().copy(), t)
+        #update data for plotting
+        vis.update(rob.true_pos.flatten().copy(), mean.flatten().copy(), t)# deep copy
+        #observe
         zs = []
         for lm in landmarks:
-            z = sensor(Qt,states,lm,landmarks)
+            z = sensor(Qt,rob.true_pos,lm,landmarks)
             zs.append(z)
-
-        states = state_update(states, u, Rt, DT)
-        mean, cov = ekf.predict(N,Rt, Qt, mean, cov, u, zs,DT)
+        #EKF-SLAM algorithm
+        mean, cov = ekf.predict(rob,N,Rt, Qt, mean, cov, u, zs,DT)
+        #update predicted and true pose
+        rob.pos_update(Rt,DT,mean)
+        #plot 
         vis.show(landmarks,mean,N,window)
         t += DT
 
-    performance(np.round(mean, 3),N)
+    # performance(np.round(mean, 3),N)
     # plt.ioff()
     # plt.show()
     return
