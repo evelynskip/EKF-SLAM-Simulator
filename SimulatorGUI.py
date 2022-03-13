@@ -50,21 +50,40 @@ class EntryWindow(QWidget):
         title_text.setProperty('class', 'big_label')
 
         p1_label = QLabel("DT:", self)
-        p1_label.move(70, 150)
-
+        p1_label.move(60, 150)
         self.p1_entry = QLineEdit(self)
         self.p1_entry.setAlignment(Qt.AlignLeft) # The default alignment is AlignLeft
         self.p1_entry.move(100, 150)
         self.p1_entry.resize(200, 20) # Change size of entry field
 
-        p2_label = QLabel("p2:", self)
-        p2_label.move(70, 200)
-    
-
+        p2_label = QLabel("Linear velocity:", self)
+        p2_label.move(20, 200)
         self.p2_entry = QLineEdit(self)
         self.p2_entry.setAlignment(Qt.AlignLeft) # The default alignment is AlignLeft
-        self.p2_entry.move(100, 200)
-        self.p2_entry.resize(200, 20) # Change size of entry field
+        self.p2_entry.move(150, 200)
+        self.p2_entry.resize(150, 20) # Change size of entry field 
+
+        p3_label = QLabel("Angular velocity:", self)
+        p3_label.move(20, 250)
+        self.p3_entry = QLineEdit(self)
+        self.p3_entry.setAlignment(Qt.AlignLeft) # The default alignment is AlignLeft
+        self.p3_entry.move(150, 250)
+        self.p3_entry.resize(150, 20) # Change size of entry field
+
+        p4_label = QLabel("Motion noise:", self)
+        p4_label.move(20, 300)
+        self.p4_entry = QLineEdit(self)
+        self.p4_entry.setAlignment(Qt.AlignLeft) # The default alignment is AlignLeft
+        self.p4_entry.move(150, 300)
+        self.p4_entry.resize(150, 20) # Change size of entry field
+
+
+        p5_label = QLabel("Measure. noise:", self)
+        p5_label.move(20, 350)
+        self.p5_entry = QLineEdit(self)
+        self.p5_entry.setAlignment(Qt.AlignLeft) # The default alignment is AlignLeft
+        self.p5_entry.move(150, 350)
+        self.p5_entry.resize(150, 20) # Change size of entry field
 
         groupBox = QGroupBox('EKF-SLAM Result',self)
         groupBox.setGeometry(QRect(450,70,700 ,550))
@@ -84,10 +103,10 @@ class EntryWindow(QWidget):
         button_begin_static.clicked.connect(self.begin_ekf_static)
         button_begin_static.move(210,550)#(550,70)
 
-        button_clear = QPushButton('Clear',self)
+        button_clear = QPushButton('Set Default',self)
         button_clear.setProperty('class', 'danger')
         button_clear.clicked.connect(self.clear_ekf)
-        button_clear.move(340,300)#(650,70)
+        button_clear.move(320,280)#(650,70)
    
         button_save = QPushButton('Save Image',self)
         button_save.setProperty('class', 'success')
@@ -103,19 +122,29 @@ class EntryWindow(QWidget):
         ax.plot(t,s)
         self.canvas.draw()
         '''
+        #v w rt qt
         DT=self.p1_entry.text()
-        # p2=self.p2_entry.text()
-        # slam_function(DT)
-        SLAM_Algorithm.slam_function(self,DT,0)
+        v=self.p2_entry.text()
+        w=self.p3_entry.text()
+        rt=self.p4_entry.text()
+        qt=self.p5_entry.text()
+        SLAM_Algorithm.slam_function(self,0,DT,rt,qt,v,w)
 
     
     def begin_ekf_static(self):
         DT=self.p1_entry.text()
-        # p2=self.p2_entry.text()
-        SLAM_Algorithm.slam_function(self,DT,1)
+        v=self.p2_entry.text()
+        w=self.p3_entry.text()
+        rt=self.p4_entry.text()
+        qt=self.p5_entry.text()
+        SLAM_Algorithm.slam_function(self,1,DT,rt,qt,v,w)
     
     def clear_ekf(self):
         self.p1_entry.setText('0.10')
+        self.p2_entry.setText('2.0')
+        self.p3_entry.setText('0.2')
+        self.p4_entry.setText('0.1')
+        self.p5_entry.setText('0.05')
         plt.clf()
 
 
@@ -134,6 +163,7 @@ class EntryWindow(QWidget):
             "Are you sure you want to Quit?", QMessageBox.No | QMessageBox.Yes,
             QMessageBox.Yes)
         if quit_msg == QMessageBox.Yes:
+            sys.exit()
             event.accept() # accept the event and close the application
         else:
             event.ignore() # ignore the close event

@@ -226,13 +226,41 @@ def sensor(Qt,states,lm,landmarks):
 
 
 
-def slam_function(window,DT,Plot_flag):
+def slam_function(window,Plot_flag,DT,rt,qt,v,w):
     global flag
     flag=Plot_flag
+    '''initialize parameters'''
     if DT == '':
         DT=0.1
     else:
         DT=float(DT)
+    if v == '':
+        v=2.
+    else:
+        v=float(v)
+    if w == '':
+        w=0.2
+    else:
+        w=float(w)
+    # Rt standard deviation of motion noise
+    # Qt standard deviation of measurement noise
+    if rt == '':
+        rt=.1
+    else:
+        rt=float(rt)
+
+    if qt == '':
+        qt=.05
+    else:
+        qt=float(qt)
+    Rt = rt*np.eye(3)
+    Qt = qt*np.eye(3)#.05*np.eye(3)
+
+
+
+
+
+    
     t = 0.
     tf = 30.
     INF = 1000.
@@ -250,14 +278,9 @@ def slam_function(window,DT,Plot_flag):
     ekf = EKFSLAM()
     vis = Plotting()
 
-    # Rt standard deviation of motion noise
-    # Qt standard deviation of measurement noise
-    Rt = .1*np.eye(3)
-    Qt = .05*np.eye(3)
-
     #initialize robot
     # u velocity of the robot
-    u = np.array([2., 0.2])
+    u = np.array([v, w])
     rob=Robot(u[0],u[1])
 
     # create mean and cov matrix
@@ -270,8 +293,6 @@ def slam_function(window,DT,Plot_flag):
     # plt.ion()
     ax=window.figure.add_axes([0.1,0.1,0.8,0.8])
     while t <= tf:
-        #update data for plotting
-        vis.update(rob.true_pos.flatten().copy(), mean.flatten().copy(), t)# deep copy
         #observe
         zs = []
         for lm in landmarks:
@@ -281,6 +302,8 @@ def slam_function(window,DT,Plot_flag):
         mean, cov = ekf.predict(rob,N,Rt, Qt, mean, cov, u, zs,DT)
         #update predicted and true pose
         rob.pos_update(Rt,DT,mean)
+        #update data for plotting
+        vis.update(rob.true_pos.flatten().copy(), mean.flatten().copy(), t)# deep copy
         #plot 
         if flag == 0:
             vis.show(rob,landmarks,mean,N,window,ax)
