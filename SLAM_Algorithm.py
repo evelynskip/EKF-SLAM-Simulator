@@ -52,7 +52,7 @@ class Plotting:
         p_pred = self.computeTriangle(rob,'Predicted')
         p_true = self.computeTriangle(rob,'True')
         
-        ax.cla()
+        ax.clear()
         ax.plot(self.true_x, self.true_y, label='True')
         ax.plot(self.pred_x, self.pred_y, label='Predicted')
         ax.plot([mark.x for mark in landmarks], [mark.y for mark in landmarks], 'gX', label='True Landmarks')
@@ -64,11 +64,10 @@ class Plotting:
             ax.plot([p_true[i][0],p_true[i+1][0]],[p_true[i][1],p_true[i+1][1]],color = 'cornflowerblue')
         ax.legend()
         ax.grid()
-        #time.sleep(0.05)
-        if flag == 0: 
-            plt.pause(0.001)
         window.canvas.draw()
-        
+        if flag == 0:
+            window.canvas.flush_events() 
+         # plt.pause(0.001)
 
 class Landmark:
     def __init__(self, x_pos, y_pos, sig):
@@ -256,11 +255,6 @@ def slam_function(window,Plot_flag,DT,rt,qt,v,w):
     Rt = rt*np.eye(3)
     Qt = qt*np.eye(3)#.05*np.eye(3)
 
-
-
-
-
-    
     t = 0.
     tf = 30.
     INF = 1000.
@@ -291,7 +285,8 @@ def slam_function(window,Plot_flag,DT,rt,qt,v,w):
     cov[:3, :3] = np.zeros((3, 3))
 
     # plt.ion()
-    ax=window.figure.add_axes([0.1,0.1,0.8,0.8])
+    # ax=window.figure.add_axes([0.1,0.1,0.8,0.8])
+    ax=window.ax
     while t <= tf:
         #observe
         zs = []

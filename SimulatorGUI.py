@@ -93,6 +93,7 @@ class EntryWindow(QWidget):
         self.canvas = FigureCanvas(self.figure)
         self.gridlayout = QGridLayout(groupBox)  # 继承容器groupBox
         self.gridlayout.addWidget(self.canvas,0,1)
+        self.ax=self.figure.add_axes([0.1,0.1,0.8,0.8])
         
         
         button_begin_dynamic = QPushButton('Begin_Dynamic',self)
