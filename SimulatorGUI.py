@@ -146,7 +146,7 @@ class EntryWindow(QWidget):
         self.p3_entry.setText('0.2')
         self.p4_entry.setText('0.1')
         self.p5_entry.setText('0.05')
-        plt.clf()
+        
 
 
     def  save_image(self):

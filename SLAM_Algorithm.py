@@ -25,6 +25,7 @@ class Plotting:
         self.pred_lm_y.append(pred_states[4])
 
         self.time.append(time)
+
     @staticmethod
     def computeTriangle(rob,strRobType):
         if strRobType == 'Predicted':
@@ -47,8 +48,38 @@ class Plotting:
         p[1][:]=p[1][:]+y
         p=p.T
         return p
+    
+    @staticmethod
+    def get_covariance_ellipse_points(mu, P, base_circ=[]):
+
+        if len(base_circ) == 0:
+            N = 20
+            phi = np.linspace(0, 2*np.pi, N)
+            x = np.reshape(np.cos(phi), (-1,1))
+            y = np.reshape(np.sin(phi), (-1,1))
+            base_circ.extend(np.hstack((x,y)).tolist())
+
+        vals, _ = np.linalg.eigh(P)
+
+        offset = 1e-6 - min(0, vals.min())
+
+        G = np.linalg.cholesky(P + offset * np.eye(mu.shape[0]))
+
+        # 3 sigma bound
+        circ = 3*np.matmul(np.array(base_circ), G.T) + mu
+
+        return circ
+
+    def plot_covariance(self,mean,cov,ax,N):
         
-    def show(self,rob,landmarks,mean,N,window,ax):
+        for i in range(N):
+            idx = 3 + 3*i
+            P = cov[idx:idx+2,idx:idx+2]
+            circ = self.get_covariance_ellipse_points(mean[idx:idx+2].reshape([-1]), P)
+            ax.plot(circ[:,0],circ[:,1],color='silver')
+
+
+    def show(self,rob,landmarks,mean,cov,N,window,ax):
         p_pred = self.computeTriangle(rob,'Predicted')
         p_true = self.computeTriangle(rob,'True')
         
@@ -58,6 +89,7 @@ class Plotting:
         ax.plot([mark.x for mark in landmarks], [mark.y for mark in landmarks], 'gX', label='True Landmarks')
         ax.plot([mean[3 + 3 * idx, 0] for idx in range(N)],
                  [mean[4 + 3 * idx, 0] for idx in range(N)], 'rX', label='Predicted Landmarks')
+        self.plot_covariance(mean,cov,ax,N)
         #draw the robot
         for i in range(3):
             ax.plot([p_pred[i][0],p_pred[i+1][0]],[p_pred[i][1],p_pred[i+1][1]],color = 'orange')
@@ -141,7 +173,6 @@ class EKFSLAM:
         Fx = np.eye(3, 3*N+3)
 
         f, g = rob.motion(prev_mean[2, 0], DT)
-        # f, g = self.motion(ut[0], ut[1], prev_mean[2, 0], DT)
         mean = prev_mean + Fx.T @ f
 
         Gt = Fx.T @ g @ Fx + np.eye(3*N+3)
@@ -299,14 +330,13 @@ def slam_function(window,Plot_flag,DT,rt,qt,v,w):
         rob.pos_update(Rt,DT,mean)
         #update data for plotting
         vis.update(rob.true_pos.flatten().copy(), mean.flatten().copy(), t)# deep copy
-        #plot 
         if flag == 0:
-            vis.show(rob,landmarks,mean,N,window,ax)
+            vis.show(rob,landmarks,mean,cov,N,window,ax)
         t += DT
 
     # performance(np.round(mean, 3),N)
     # plt.ioff()
     # plt.show()
     if flag == 1:
-        vis.show(rob,landmarks,mean,N,window,ax)
+        vis.show(rob,landmarks,mean,cov,N,window,ax)
     return
