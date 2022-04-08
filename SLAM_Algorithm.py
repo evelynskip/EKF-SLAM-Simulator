@@ -74,9 +74,10 @@ class Plotting:
         
         for i in range(N):
             idx = 3 + 3*i
-            P = cov[idx:idx+2,idx:idx+2]
-            circ = self.get_covariance_ellipse_points(mean[idx:idx+2].reshape([-1]), P)
-            ax.plot(circ[:,0],circ[:,1],color='silver')
+            if not (mean[idx+2]==0 and mean[idx]==0):
+                P = cov[idx:idx+2,idx:idx+2]
+                circ = self.get_covariance_ellipse_points(mean[idx:idx+2].reshape([-1]), P)
+                ax.plot(circ[:,0],circ[:,1],color='silver')
 
 
     def show(self,rob,landmarks,mean,cov,N,window,ax):
@@ -94,6 +95,7 @@ class Plotting:
         for i in range(3):
             ax.plot([p_pred[i][0],p_pred[i+1][0]],[p_pred[i][1],p_pred[i+1][1]],color = 'orange')
             ax.plot([p_true[i][0],p_true[i+1][0]],[p_true[i][1],p_true[i+1][1]],color = 'cornflowerblue')
+        #draw the observation line
         ax.legend()
         ax.grid()
         window.canvas.draw()
@@ -152,15 +154,26 @@ class Robot:
             x, y, theta = self.true_pos
             v=self.vt
             w=self.wt
-
-            theta_dot = w
+            """  theta_dot = w
             x_dot = v*cos(theta)
-            y_dot = v*sin(theta)
-
+            y_dot = v*sin(theta)          
             theta += (theta_dot + np.random.normal(0., Rt[2, 2])) * DT
             x += (x_dot + np.random.normal(0., Rt[0, 0])) * DT
-            y += (y_dot + np.random.normal(0., Rt[1, 1])) * DT
+            y += (y_dot + np.random.normal(0., Rt[1, 1])) * DT   """
+            
+            theta_dot = self.wt * DT
+            x_dot = (-self.vt/self.wt) * sin(theta) + (self.vt/self.wt) * sin(theta + self.wt*DT)
+            y_dot = (self.vt/self.wt) * cos(theta) - (self.vt/self.wt) * cos(theta + self.wt*DT)
 
+            theta_error= (np.random.normal(0., Rt[2, 2])) * DT/5
+            x_error=(np.random.normal(0., Rt[0, 0])) * DT
+            y_error=(np.random.normal(0., Rt[1, 1])) * DT
+            theta += theta_dot +theta_error
+            x += x_dot + x_error
+            y += y_dot + y_error
+            #print("dx=%f,dy=%f,dtheta=%f",x_dot,y_dot,theta_dot)
+            # print("error=%f", (np.random.normal(0., Rt[1, 1])) * DT)
+            #print("ratio=%f,%f,%f",x_error/x_dot,y_error/y_dot,theta_error/theta_dot)
             self.true_pos=np.array([x, y, theta])
             self.pred_pos=mean[0:3]
     
@@ -256,7 +269,7 @@ def sensor(Qt,states,lm,landmarks):
 
 
 
-def slam_function(window,Plot_flag,DT,rt,qt,v,w):
+def slam_function(window,Plot_flag,DT,rt,qt,v,w,rng_max):
     global flag
     flag=Plot_flag
     '''initialize parameters'''
@@ -272,10 +285,14 @@ def slam_function(window,Plot_flag,DT,rt,qt,v,w):
         w=0.2
     else:
         w=float(w)
+    if rng_max == '':
+        rng_max=15
+    else:
+        rng_max=float(rng_max)
     # Rt standard deviation of motion noise
     # Qt standard deviation of measurement noise
     if rt == '':
-        rt=.1
+        rt=.02
     else:
         rt=float(rt)
 
@@ -316,14 +333,14 @@ def slam_function(window,Plot_flag,DT,rt,qt,v,w):
     cov[:3, :3] = np.zeros((3, 3))
 
     # plt.ion()
-    # ax=window.figure.add_axes([0.1,0.1,0.8,0.8])
     ax=window.ax
     while t <= tf:
         #observe
         zs = []
         for lm in landmarks:
             z = sensor(Qt,rob.true_pos,lm,landmarks)
-            zs.append(z)
+            if (z.rng<rng_max):
+                zs.append(z)
         #EKF-SLAM algorithm
         mean, cov = ekf.predict(rob,N,Rt, Qt, mean, cov, u, zs,DT)
         #update predicted and true pose

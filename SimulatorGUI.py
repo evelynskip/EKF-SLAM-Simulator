@@ -85,6 +85,14 @@ class EntryWindow(QWidget):
         self.p5_entry.move(150, 350)
         self.p5_entry.resize(150, 20) # Change size of entry field
 
+        p6_label = QLabel("Observ. range:", self)
+        p6_label.move(20, 400)
+        self.p6_entry = QLineEdit(self)
+        self.p6_entry.setAlignment(Qt.AlignLeft) # The default alignment is AlignLeft
+        self.p6_entry.move(150, 400)
+        self.p6_entry.resize(150, 20) # Change size of entry field
+
+
         groupBox = QGroupBox('EKF-SLAM Result',self)
         groupBox.setGeometry(QRect(450,70,700 ,550))
 
@@ -98,11 +106,11 @@ class EntryWindow(QWidget):
         
         button_begin_dynamic = QPushButton('Begin_Dynamic',self)
         button_begin_dynamic.clicked.connect(self.begin_ekf_dynamic)
-        button_begin_dynamic.move(60,550)#(550,70)
+        button_begin_dynamic.move(60,600)#(550,70)
 
         button_begin_static = QPushButton('Begin_Static',self)
         button_begin_static.clicked.connect(self.begin_ekf_static)
-        button_begin_static.move(210,550)#(550,70)
+        button_begin_static.move(210,600)#(550,70)
 
         button_clear = QPushButton('Set Default',self)
         button_clear.setProperty('class', 'danger')
@@ -112,8 +120,19 @@ class EntryWindow(QWidget):
         button_save = QPushButton('Save Image',self)
         button_save.setProperty('class', 'success')
         button_save.clicked.connect(self.save_image)
-        button_save.move(60,500)#(650,70)
+        button_save.move(60,550)#(650,70)
 
+        """future function
+        button_add_lmk = QPushButton('Add Landmarks',self)
+        button_add_lmk.setProperty('class', 'warning')
+        button_add_lmk.clicked.connect(self.begin_ekf_dynamic)
+        button_add_lmk.move(60,500)
+
+        button_delete_lmk = QPushButton('Delete Landmarks',self)
+        button_delete_lmk.setProperty('class', 'warning')
+        button_delete_lmk.clicked.connect(self.begin_ekf_static)
+        button_delete_lmk.move(210,500)#(550,70)"""
+ 
     def begin_ekf_dynamic(self):
         '''
         plt.clf()
@@ -129,7 +148,8 @@ class EntryWindow(QWidget):
         w=self.p3_entry.text()
         rt=self.p4_entry.text()
         qt=self.p5_entry.text()
-        SLAM_Algorithm.slam_function(self,0,DT,rt,qt,v,w)
+        rng_max=self.p6_entry.text()
+        SLAM_Algorithm.slam_function(self,0,DT,rt,qt,v,w,rng_max)
 
     
     def begin_ekf_static(self):
@@ -138,14 +158,16 @@ class EntryWindow(QWidget):
         w=self.p3_entry.text()
         rt=self.p4_entry.text()
         qt=self.p5_entry.text()
-        SLAM_Algorithm.slam_function(self,1,DT,rt,qt,v,w)
+        rng_max=self.p6_entry.text()
+        SLAM_Algorithm.slam_function(self,1,DT,rt,qt,v,w,rng_max)
     
     def clear_ekf(self):
         self.p1_entry.setText('0.10')
         self.p2_entry.setText('2.0')
         self.p3_entry.setText('0.2')
-        self.p4_entry.setText('0.1')
+        self.p4_entry.setText('0.02')
         self.p5_entry.setText('0.05')
+        self.p6_entry.setText('15')
         
 
 
