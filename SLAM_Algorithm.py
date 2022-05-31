@@ -1,7 +1,7 @@
 from turtle import shape
 import numpy as np
 import matplotlib.pyplot as plt
-from math import sin, cos, atan2
+from math import sin, cos, atan2,sqrt
 import time
 
 class Plotting:
@@ -85,8 +85,8 @@ class Plotting:
         p_true = self.computeTriangle(rob,'True')
         
         ax.clear()
-        ax.plot(self.true_x, self.true_y, label='True')
-        ax.plot(self.pred_x, self.pred_y, label='Predicted')
+        ax.plot(self.true_x, self.true_y, label='True Robot')
+        ax.plot(self.pred_x, self.pred_y, label='Predicted Robot')
         ax.plot([mark.x for mark in landmarks], [mark.y for mark in landmarks], 'gX', label='True Landmarks')
         ax.plot([mean[3 + 3 * idx, 0] for idx in range(N)],
                  [mean[4 + 3 * idx, 0] for idx in range(N)], 'rX', label='Predicted Landmarks')
@@ -98,6 +98,8 @@ class Plotting:
         #draw the observation line
         ax.legend()
         ax.grid()
+        ax.set_xlabel("X/m")
+        ax.set_ylabel("Y/m")
         window.canvas.draw()
         if flag == 0:
             window.canvas.flush_events() 
@@ -267,7 +269,43 @@ def sensor(Qt,states,lm,landmarks):
     z = Measurement(z_rng, z_ang, z_j,landmarks)
     return z
 
+class Error:
+    def __init__(self):
+        # k elements for k errors at k moments
+        self.error_lmk = [] 
+        self.t = []
+        self.error_rob_pos = [] 
+        self.error_rob_angle = [] 
 
+    @staticmethod
+    def sum_sqrt(*args):
+        sum = 0
+        for arg in args:
+            sum += arg**2
+        return sqrt(sum)
+
+    def update(self,lmks,rob,mean,t):
+        self.t.append(t)
+        self.error_rob_pos.append(self.sum_sqrt(rob.true_pos[0]-rob.pred_pos[0],rob.true_pos[1]-rob.pred_pos[1]))
+        self.error_rob_angle.append(self.sum_sqrt(rob.true_pos[2]-rob.pred_pos[2]))
+        temp = 0
+        n = 0
+        for lmk in lmks:
+            if lmk.seen == True:
+                dx = lmk.x - mean[lmk.s*3+3]
+                dy = lmk.y - mean[lmk.s*3+4]
+                n+=1
+                temp = temp + dx**2 +dy**2
+        e_lmks = sqrt(temp)/n
+        self.error_lmk.append(e_lmks)
+
+    def plot(self,window,ax):
+        ax.clear()
+        ax.plot([t for t in self.t],[e_pos for e_pos in self.error_rob_pos],color = 'cornflowerblue')
+        ax.grid()
+        ax.set_ylabel("Error/m")
+        ax.set_xlabel("T/s")
+        window.canvas.draw()
 
 def slam_function(window,Plot_flag,DT,rt,qt,v,w,rng_max):
     global flag
@@ -292,7 +330,7 @@ def slam_function(window,Plot_flag,DT,rt,qt,v,w,rng_max):
     # Rt standard deviation of motion noise
     # Qt standard deviation of measurement noise
     if rt == '':
-        rt=.02
+        rt=.002
     else:
         rt=float(rt)
 
@@ -304,22 +342,22 @@ def slam_function(window,Plot_flag,DT,rt,qt,v,w,rng_max):
     Qt = qt*np.eye(3)#.05*np.eye(3)
 
     t = 0.
-    tf = 30.
+    tf = 2*3.05/w
     INF = 1000.
     # set landmarks
     lm1 = Landmark(2., 3., 0)
     lm2 = Landmark(13., 13., 1)
     lm3 = Landmark(-5., 12., 2)
-    lm4 = Landmark(-12., 12., 3)
+    lm4 = Landmark(-13., 12., 3)
     lm5 = Landmark(0., 25., 4)
     lm6 = Landmark(0.,10,5)
-    lm7 = Landmark(5.,15.,6)
+    lm7 = Landmark(3.,15.,6)
     landmarks = [lm1, lm2, lm3, lm4, lm5,lm6,lm7]
     N = len(landmarks)
 
     ekf = EKFSLAM()
     vis = Plotting()
-
+    ave_error = Error()
     #initialize robot
     # u velocity of the robot
     u = np.array([v, w])
@@ -334,6 +372,9 @@ def slam_function(window,Plot_flag,DT,rt,qt,v,w,rng_max):
 
     # plt.ion()
     ax=window.ax
+    ax1=window.ax1
+    if flag == 0:
+        ax1.clear()
     while t <= tf:
         #observe
         zs = []
@@ -347,8 +388,10 @@ def slam_function(window,Plot_flag,DT,rt,qt,v,w,rng_max):
         rob.pos_update(Rt,DT,mean)
         #update data for plotting
         vis.update(rob.true_pos.flatten().copy(), mean.flatten().copy(), t)# deep copy
+        ave_error.update(landmarks,rob,mean,t)
         if flag == 0:
             vis.show(rob,landmarks,mean,cov,N,window,ax)
+            ave_error.plot(window,ax1)
         t += DT
 
     # performance(np.round(mean, 3),N)
@@ -356,4 +399,5 @@ def slam_function(window,Plot_flag,DT,rt,qt,v,w,rng_max):
     # plt.show()
     if flag == 1:
         vis.show(rob,landmarks,mean,cov,N,window,ax)
+        ave_error.plot(window,ax1)
     return
