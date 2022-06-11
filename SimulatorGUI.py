@@ -6,7 +6,6 @@ from PyQt5.QtGui import QPixmap,QFont
 from qt_material import apply_stylesheet
 import os
 import SLAM_Algorithm
-# from EKF_SLAM import slam_function
 import matplotlib
 matplotlib.use("Qt5Agg")  # 声明使用QT5
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -31,8 +30,7 @@ class EntryWindow(QWidget):
             'font_family': 'Roboto',
 
         }
-
-        self.setGeometry(500,250,1200,700)
+        self.setGeometry(500,250,1200,750)
         self.setWindowTitle('EKF-SLAM Simulator')
         apply_stylesheet(app, theme='light_blue.xml',invert_secondary=True, extra=extra)
         stylesheet = app.styleSheet()
@@ -117,33 +115,22 @@ class EntryWindow(QWidget):
 
         button_begin_dynamic = QPushButton('Begin_Dynamic',self)
         button_begin_dynamic.clicked.connect(self.begin_ekf_dynamic)
-        button_begin_dynamic.move(60,600)#(550,70)
+        button_begin_dynamic.move(60,600)
 
         button_begin_static = QPushButton('Begin_Static',self)
         button_begin_static.clicked.connect(self.begin_ekf_static)
-        button_begin_static.move(210,600)#(550,70)
+        button_begin_static.move(210,600)
 
         button_clear = QPushButton('Set Default',self)
         button_clear.setProperty('class', 'danger')
         button_clear.clicked.connect(self.clear_ekf)
-        button_clear.move(320,280)#(650,70)
+        button_clear.move(320,280)
    
         button_save = QPushButton('Save Image',self)
         button_save.setProperty('class', 'success')
         button_save.clicked.connect(self.save_image)
-        button_save.move(60,550)#(650,70)
+        button_save.move(60,550)
 
-        """future function
-        button_add_lmk = QPushButton('Add Landmarks',self)
-        button_add_lmk.setProperty('class', 'warning')
-        button_add_lmk.clicked.connect(self.begin_ekf_dynamic)
-        button_add_lmk.move(60,500)
-
-        button_delete_lmk = QPushButton('Delete Landmarks',self)
-        button_delete_lmk.setProperty('class', 'warning')
-        button_delete_lmk.clicked.connect(self.begin_ekf_static)
-        button_delete_lmk.move(210,500)#(550,70)"""
- 
     def begin_ekf_dynamic(self):
         #v w rt qt
         DT=self.p1_entry.text()
@@ -168,7 +155,7 @@ class EntryWindow(QWidget):
         self.p1_entry.setText('0.1')
         self.p2_entry.setText('2.0')
         self.p3_entry.setText('0.2')
-        self.p4_entry.setText('0.002')
+        self.p4_entry.setText('0.01')
         self.p5_entry.setText('0.05')
         self.p6_entry.setText('15')
         

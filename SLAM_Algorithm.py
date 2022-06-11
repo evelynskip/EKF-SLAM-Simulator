@@ -1,3 +1,4 @@
+from cmath import pi
 from turtle import shape
 import numpy as np
 import matplotlib.pyplot as plt
@@ -151,49 +152,56 @@ class Robot:
 
         return a, b    
 
-    def pos_update(self,Rt,DT,mean):
+    def pos_update(self,Rt,DT,mean,flag):
             # motion with guassian noise
             x, y, theta = self.true_pos
             v=self.vt
             w=self.wt
-            """  theta_dot = w
-            x_dot = v*cos(theta)
-            y_dot = v*sin(theta)          
-            theta += (theta_dot + np.random.normal(0., Rt[2, 2])) * DT
-            x += (x_dot + np.random.normal(0., Rt[0, 0])) * DT
-            y += (y_dot + np.random.normal(0., Rt[1, 1])) * DT   """
+
             
             theta_dot = self.wt * DT
             x_dot = (-self.vt/self.wt) * sin(theta) + (self.vt/self.wt) * sin(theta + self.wt*DT)
             y_dot = (self.vt/self.wt) * cos(theta) - (self.vt/self.wt) * cos(theta + self.wt*DT)
 
-            theta_error= (np.random.normal(0., Rt[2, 2])) * DT/5
-            x_error=(np.random.normal(0., Rt[0, 0])) * DT
-            y_error=(np.random.normal(0., Rt[1, 1])) * DT
+            theta_error= (np.random.normal(0., sqrt(Rt[2, 2]))) * DT/5
+            x_error=(np.random.normal(0., sqrt(Rt[0, 0]))) * DT
+            y_error=(np.random.normal(0., sqrt(Rt[1, 1]))) * DT
             theta += theta_dot +theta_error
+            if theta<-pi:
+                theta = theta+2*pi
+            if theta>pi:
+                theta = theta-2*pi
             x += x_dot + x_error
-            y += y_dot + y_error
-            #print("dx=%f,dy=%f,dtheta=%f",x_dot,y_dot,theta_dot)
-            # print("error=%f", (np.random.normal(0., Rt[1, 1])) * DT)
-            #print("ratio=%f,%f,%f",x_error/x_dot,y_error/y_dot,theta_error/theta_dot)
-            self.true_pos=np.array([x, y, theta])
-            self.pred_pos=mean[0:3]
+            y += y_dot+ y_error
+
+            if flag==0:
+                self.true_pos=np.array([x, y, theta])
+            if flag==1:
+                self.pred_pos=mean[0:3]
     
         
 
 class EKFSLAM:
 
 
-    def predict(self, rob,N,Rt,Qt, prev_mean=None, prev_cov=None, ut=None, zt=None,DT=None):
+    def predict(self, rob,N,Rt,Qt,landmarks,rng_max,prev_mean=None, prev_cov=None, ut=None,DT=None):
         Fx = np.eye(3, 3*N+3)
 
         f, g = rob.motion(prev_mean[2, 0], DT)
         mean = prev_mean + Fx.T @ f
+        rob.pos_update(Rt,DT,mean,0)
+
+        #observe
+        zs = []
+        for lm in landmarks:
+            z = sensor(Qt,rob.true_pos,lm,landmarks)
+            if (z.rng<rng_max):
+                zs.append(z)
 
         Gt = Fx.T @ g @ Fx + np.eye(3*N+3)
         cov = Gt @ prev_cov @ Gt.T + Fx.T @ Rt @ Fx
 
-        for obs in zt:
+        for obs in zs:
             j = obs.landmark.s
             zi = np.array([obs.rng, obs.ang, obs.id]).reshape(-1, 1)
             if not obs.landmark.seen:
@@ -210,6 +218,10 @@ class EKFSLAM:
             zi_hat = np.zeros((3, 1))
             zi_hat[0, 0] = np.sqrt(q)
             zi_hat[1, 0] = atan2(delt_y, delt_x) - mean[2, 0]
+            if zi_hat[1, 0] <-pi:
+                zi_hat[1, 0] = zi_hat[1, 0]+2*pi
+            if zi_hat[1, 0] > pi:
+                zi_hat[1, 0] = zi_hat[1, 0]-2*pi
             zi_hat[2, 0] = obs.landmark.s
 
             Fxj_a = np.eye(6, 3)
@@ -218,21 +230,26 @@ class EKFSLAM:
             Fxj = np.hstack((Fxj_a, Fxj_b))
 
             h = np.zeros((3, 6))
-            h[0, 0] = -np.sqrt(q) * delt_x
-            h[0, 1] = -np.sqrt(q) * delt_y
-            h[0, 3] = np.sqrt(q) * delt_x
-            h[0, 4] = np.sqrt(q) * delt_y
-            h[1, 0] = delt_y
-            h[1, 1] = -delt_x
-            h[1, 2] = -q
-            h[1, 3] = -delt_y
-            h[1, 4] = delt_x
-            h[2, 5] = q
+            h[0, 0] = -1/np.sqrt(q) * delt_x
+            h[0, 1] = -1/np.sqrt(q) * delt_y
+            h[0, 3] = 1/np.sqrt(q) * delt_x
+            h[0, 4] = 1/np.sqrt(q) * delt_y
+            h[1, 0] = 1/q*delt_y#delt_y
+            h[1, 1] = -1/q*delt_x
+            h[1, 2] = -1
+            h[1, 3] = -1/q*delt_y
+            h[1, 4] = 1/q*delt_x
+            h[2, 5] = 1
 
-            Hti = (1/q) * (h @ Fxj)
+            Hti =  (h @ Fxj)
             Kti = cov @ Hti.T @ np.linalg.inv((Hti @ cov @ Hti.T + Qt))
 
-            mean = mean + (Kti @ (zi-zi_hat))
+            dzi=zi-zi_hat
+            if dzi[1]<-pi:
+                dzi[1] = dzi[1]+2*pi
+            if dzi[1]>pi:
+                dzi[1] = dzi[1]-2*pi
+            mean = mean + (Kti @ (dzi))
             cov = (np.eye(cov.shape[0]) - Kti @ Hti) @ cov
 
         return mean, cov
@@ -245,26 +262,17 @@ def lm_from_id(lm_id, lm_list):
     return None
 
 
-def performance(pred,N):
-    pred_dict = dict()
-    pred_dict['X'] = pred[0, 0]
-    pred_dict['Y'] = pred[1, 0]
-    pred_dict['THETA'] = pred[2, 0]
-    for n in range(N):
-        pred_dict['LM_' + str(n) + ' X'] = pred[3 + 3 * n, 0]
-        pred_dict['LM_' + str(n) + ' Y'] = pred[4 + 3 * n, 0]
-        pred_dict['LM_' + str(n) + ' ID'] = pred[5 + 3 * n, 0]
-
-    print('PREDICTED STATES')
-    print(pred_dict)
-
 
 def sensor(Qt,states,lm,landmarks):
     #generate Guassian noise,mean=0,standard deviation=0.05
-    rng_noise = np.random.normal(0., Qt[0, 0])
-    ang_noise = np.random.normal(0., Qt[1, 1])
+    rng_noise = np.random.normal(0., sqrt(Qt[0, 0]))
+    ang_noise = np.random.normal(0., sqrt(Qt[1, 1]))
     z_rng = np.sqrt((states[0] - lm.x) ** 2 + (states[1] - lm.y) ** 2) + rng_noise
     z_ang = atan2(lm.y - states[1], lm.x - states[0]) - states[2] + ang_noise
+    if z_ang <-pi:
+        z_ang = z_ang+2*pi
+    if z_ang > pi:
+        z_ang = z_ang-2*pi
     z_j = lm.s
     z = Measurement(z_rng, z_ang, z_j,landmarks)
     return z
@@ -301,7 +309,7 @@ class Error:
 
     def plot(self,window,ax):
         ax.clear()
-        ax.plot([t for t in self.t],[e_pos for e_pos in self.error_rob_pos],color = 'cornflowerblue')
+        ax.plot([t for t in self.t],[e_pos for e_pos in self.error_lmk],color = 'cornflowerblue')
         ax.grid()
         ax.set_ylabel("Error/m")
         ax.set_xlabel("T/s")
@@ -330,7 +338,7 @@ def slam_function(window,Plot_flag,DT,rt,qt,v,w,rng_max):
     # Rt standard deviation of motion noise
     # Qt standard deviation of measurement noise
     if rt == '':
-        rt=.002
+        rt=.01
     else:
         rt=float(rt)
 
@@ -338,8 +346,8 @@ def slam_function(window,Plot_flag,DT,rt,qt,v,w,rng_max):
         qt=.05
     else:
         qt=float(qt)
-    Rt = rt*np.eye(3)
-    Qt = qt*np.eye(3)#.05*np.eye(3)
+    Rt = rt**2*np.eye(3)
+    Qt = qt**2*np.eye(3)#.05*np.eye(3)
 
     t = 0.
     tf = 2*3.05/w
@@ -348,10 +356,22 @@ def slam_function(window,Plot_flag,DT,rt,qt,v,w,rng_max):
     lm1 = Landmark(2., 3., 0)
     lm2 = Landmark(13., 13., 1)
     lm3 = Landmark(-5., 12., 2)
-    lm4 = Landmark(-13., 12., 3)
+    lm4 = Landmark(-14., 5., 3)
     lm5 = Landmark(0., 25., 4)
     lm6 = Landmark(0.,10,5)
     lm7 = Landmark(3.,15.,6)
+    lm8 = Landmark(4.,5.,7)
+    lm9 = Landmark(7.,10.,8)
+    lm10 = Landmark(6.,7.,9)
+    lm11 = Landmark(-8.,15.,10)
+    lm12 = Landmark(-5.,0.,11)
+    lm13 = Landmark(-7.5,3.,12)
+    lm14 = Landmark(-12.,5.,13)
+    lm15 = Landmark(-14.,15.,14)
+    lm16 = Landmark(-10.,20.,15)
+    lm17 = Landmark(-7.5,21.,16)
+    lm18 = Landmark(-5.,-5.,17)
+    
     landmarks = [lm1, lm2, lm3, lm4, lm5,lm6,lm7]
     N = len(landmarks)
 
@@ -365,10 +385,14 @@ def slam_function(window,Plot_flag,DT,rt,qt,v,w,rng_max):
 
     # create mean and cov matrix
     xr = rob.true_pos.reshape(-1, 1) #to a column vector
+    #print("xr",xr.shape)
     xm = np.zeros((3 * N, 1))
+    #print("xm",xm.shape)
     mean = np.vstack((xr, xm))
-    cov = INF * np.eye(len(mean))
+    #print("mean",mean.shape)
+    cov = 1 * np.eye(len(mean))
     cov[:3, :3] = np.zeros((3, 3))
+    #print("cov",cov.shape)
 
     # plt.ion()
     ax=window.ax
@@ -376,16 +400,11 @@ def slam_function(window,Plot_flag,DT,rt,qt,v,w,rng_max):
     if flag == 0:
         ax1.clear()
     while t <= tf:
-        #observe
-        zs = []
-        for lm in landmarks:
-            z = sensor(Qt,rob.true_pos,lm,landmarks)
-            if (z.rng<rng_max):
-                zs.append(z)
+    
         #EKF-SLAM algorithm
-        mean, cov = ekf.predict(rob,N,Rt, Qt, mean, cov, u, zs,DT)
+        mean, cov = ekf.predict(rob,N,Rt, Qt,landmarks,rng_max, mean, cov, u,DT)
         #update predicted and true pose
-        rob.pos_update(Rt,DT,mean)
+        rob.pos_update(Rt,DT,mean,1)
         #update data for plotting
         vis.update(rob.true_pos.flatten().copy(), mean.flatten().copy(), t)# deep copy
         ave_error.update(landmarks,rob,mean,t)
@@ -400,4 +419,5 @@ def slam_function(window,Plot_flag,DT,rt,qt,v,w,rng_max):
     if flag == 1:
         vis.show(rob,landmarks,mean,cov,N,window,ax)
         ave_error.plot(window,ax1)
+    
     return

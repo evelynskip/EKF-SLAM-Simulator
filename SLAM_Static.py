@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from math import sin, cos, atan2,sqrt
 import time
+from cmath import pi
 
 class Plotting:
     def __init__(self):
@@ -76,18 +77,17 @@ class Plotting:
             idx = 3 + 3*i
             if not (mean[idx+2]==0 and mean[idx]==0):
                 P = cov[idx:idx+2,idx:idx+2]
-                circ = self.get_covariance_ellipse_points(mean[idx:idx+2].reshape([-1]), P)
+                circ = self.get_covariance_ellipse_points(mean[idx:idx+2].reshape([-1]), 10*P)
                 ax.plot(circ[:,0],circ[:,1],color='silver')
 
     def show(self,rob,landmarks,mean,cov,N):
         #clear the former figure
-        #plt.clf()
         p_pred = self.computeTriangle(rob,'Predicted')
         p_true = self.computeTriangle(rob,'True')
         fig, ax = plt.subplots() 
         ax.cla()
-        ax.plot(self.true_x, self.true_y, label='True')
-        ax.plot(self.pred_x, self.pred_y, label='Predicted')
+        ax.plot(self.true_x, self.true_y, label='True Robot')
+        ax.plot(self.pred_x, self.pred_y, label='Predicted Robot')
         ax.plot([mark.x for mark in landmarks], [mark.y for mark in landmarks], 'gX', label='True Landmarks')
         ax.plot([mean[3 + 3 * idx, 0] for idx in range(N)],
                  [mean[4 + 3 * idx, 0] for idx in range(N)], 'rX', label='Predicted Landmarks')
@@ -98,8 +98,9 @@ class Plotting:
             ax.plot([p_true[i][0],p_true[i+1][0]],[p_true[i][1],p_true[i+1][1]],color = 'cornflowerblue')
         ax.legend()
         ax.grid()
-        #plt.show()
-        #time.sleep(0.05) 
+        ax.set_xlabel("X/m")
+        ax.set_ylabel("Y/m")
+ 
 
 
         
@@ -151,100 +152,64 @@ class Robot:
 
         return a, b    
 
-    def pos_update(self,Rt,DT,mean):
+    def pos_update(self,Rt,DT,mean,flag):
             # motion with guassian noise
             x, y, theta = self.true_pos
             v=self.vt
             w=self.wt
-            """  theta_dot = w
-            x_dot = v*cos(theta)
-            y_dot = v*sin(theta)          
-            theta += (theta_dot + np.random.normal(0., Rt[2, 2])) * DT
-            x += (x_dot + np.random.normal(0., Rt[0, 0])) * DT
-            y += (y_dot + np.random.normal(0., Rt[1, 1])) * DT   """
+
             
             theta_dot = self.wt * DT
             x_dot = (-self.vt/self.wt) * sin(theta) + (self.vt/self.wt) * sin(theta + self.wt*DT)
             y_dot = (self.vt/self.wt) * cos(theta) - (self.vt/self.wt) * cos(theta + self.wt*DT)
 
-            theta_error= (np.random.normal(0., Rt[2, 2])) * DT/5
-            x_error=(np.random.normal(0., Rt[0, 0])) * DT
-            y_error=(np.random.normal(0., Rt[1, 1])) * DT
+            theta_error= (np.random.normal(0., sqrt(Rt[2, 2]))) * DT/5
+            x_error=(np.random.normal(0., sqrt(Rt[0, 0]))) * DT
+            y_error=(np.random.normal(0., sqrt(Rt[1, 1]))) * DT
             theta += theta_dot +theta_error
+            if theta<-pi:
+                theta = theta+2*pi
+            if theta>pi:
+                theta = theta-2*pi
             x += x_dot + x_error
-            y += y_dot + y_error
-            #print("dx=%f,dy=%f,dtheta=%f",x_dot,y_dot,theta_dot)
-            # print("error=%f", (np.random.normal(0., Rt[1, 1])) * DT)
-            #print("ratio=%f,%f,%f",x_error/x_dot,y_error/y_dot,theta_error/theta_dot)
-            self.true_pos=np.array([x, y, theta])
-            self.pred_pos=mean[0:3]
+            y += y_dot+ y_error
+
+            if flag==0:
+                self.true_pos=np.array([x, y, theta])
+            if flag==1:
+                self.pred_pos=mean[0:3]
+
     
-def M2(zi,j,mean,cov,Qt):
-    delt_x = mean[3+3*j, 0] - mean[0, 0]
-    delt_y = mean[4+3*j, 0] - mean[1, 0]
-    delt = np.array([delt_x, delt_y]).reshape(-1, 1)
-    q = delt.T @ delt
-
-    zi_hat = np.zeros((2, 1))
-    zi_hat[0, 0] = np.sqrt(q)
-    zi_hat[1, 0] = atan2(delt_y, delt_x) - mean[2, 0]
-
-    dz = zi - zi_hat
-
-    h = np.zeros((2, 5))
-    h[0, 0] = -np.sqrt(q) * delt_x
-    h[0, 1] = -np.sqrt(q) * delt_y
-    h[0, 3] = np.sqrt(q) * delt_x
-    h[0, 4] = np.sqrt(q) * delt_y
-    h[1, 0] = delt_y
-    h[1, 1] = -delt_x
-    h[1, 2] = -q
-    h[1, 3] = -delt_y
-    h[1, 4] = delt_x
-    Hij = (1/q) * h 
-    P1 = np.hstack((cov[0:3,0:3],cov[0:3,3*j+3:3*j+5]))
-    P2 = np.hstack((cov[3*j+3:3*j+5,0:3],cov[3*j+3:3*j+5,3*j+3:3*j+5]))
-    P = np.vstack((P1,P2))
-    Pij = Hij @ P @ Hij.T + Qt[:2,:2]
-    #print(Pij,j)
-    PijI = np.linalg.inv(Pij)
-    Dij2 = dz.T @ PijI @ dz
-    return Dij2
-
-def data_association(n,zi,mean,cov,Qt):
-    D2min = M2(zi,0,mean,cov,Qt)
-    nearest =1
-    for j in range(n-1):
-        Dij2 = M2(zi,j+1,mean,cov,Qt)
-        print(Dij2)
-        if Dij2<D2min:
-            nearest = j+1
-            D2min = Dij2
-    print("\n")
-    return nearest
 
 class EKFSLAM:
 
-    def predict(self, rob,N,Rt,Qt, prev_mean=None, prev_cov=None, ut=None, zt=None,DT=None):
+    def predict(self, rob,N,Rt,Qt,landmarks,rng_max,prev_mean=None, prev_cov=None, ut=None,DT=None):
+        global observed_lmk
         Fx = np.eye(3, 3*N+3)
 
         f, g = rob.motion(prev_mean[2, 0], DT)
         mean = prev_mean + Fx.T @ f
+        rob.pos_update(Rt,DT,mean,0)
+
+        #observe
+        zs = []
+        for lm in landmarks:
+            z = sensor(Qt,rob.true_pos,lm,landmarks)
+            if (z.rng<rng_max):
+                zs.append(z)
 
         Gt = Fx.T @ g @ Fx + np.eye(3*N+3)
         cov = Gt @ prev_cov @ Gt.T + Fx.T @ Rt @ Fx
 
-        for obs in zt:
+        for obs in zs:
             j = obs.landmark.s
             zi = np.array([obs.rng, obs.ang, obs.id]).reshape(-1, 1)
-
             if not obs.landmark.seen:
                 mean[3+3*j, 0] = mean[0, 0] + obs.rng * cos(obs.ang + mean[2, 0])  # x
                 mean[4+3*j, 0] = mean[1, 0] + obs.rng * sin(obs.ang + mean[2, 0])  # y
                 mean[5+3*j, 0] = obs.landmark.s  # s
                 obs.landmark.seen = True
-            #j = data_association(N,zi[0:2],mean,cov,Qt)
-            print(j)
+
             delt_x = mean[3+3*j, 0] - mean[0, 0]
             delt_y = mean[4+3*j, 0] - mean[1, 0]
             delt = np.array([delt_x, delt_y]).reshape(-1, 1)
@@ -253,6 +218,10 @@ class EKFSLAM:
             zi_hat = np.zeros((3, 1))
             zi_hat[0, 0] = np.sqrt(q)
             zi_hat[1, 0] = atan2(delt_y, delt_x) - mean[2, 0]
+            if zi_hat[1, 0] <-pi:
+                zi_hat[1, 0] = zi_hat[1, 0]+2*pi
+            if zi_hat[1, 0] > pi:
+                zi_hat[1, 0] = zi_hat[1, 0]-2*pi
             zi_hat[2, 0] = obs.landmark.s
 
             Fxj_a = np.eye(6, 3)
@@ -261,26 +230,29 @@ class EKFSLAM:
             Fxj = np.hstack((Fxj_a, Fxj_b))
 
             h = np.zeros((3, 6))
-            h[0, 0] = -np.sqrt(q) * delt_x
-            h[0, 1] = -np.sqrt(q) * delt_y
-            h[0, 3] = np.sqrt(q) * delt_x
-            h[0, 4] = np.sqrt(q) * delt_y
-            h[1, 0] = delt_y
-            h[1, 1] = -delt_x
-            h[1, 2] = -q
-            h[1, 3] = -delt_y
-            h[1, 4] = delt_x
-            h[2, 5] = q
+            h[0, 0] = -1/np.sqrt(q) * delt_x
+            h[0, 1] = -1/np.sqrt(q) * delt_y
+            h[0, 3] = 1/np.sqrt(q) * delt_x
+            h[0, 4] = 1/np.sqrt(q) * delt_y
+            h[1, 0] = 1/q*delt_y#delt_y
+            h[1, 1] = -1/q*delt_x
+            h[1, 2] = -1
+            h[1, 3] = -1/q*delt_y
+            h[1, 4] = 1/q*delt_x
+            h[2, 5] = 1
 
-            Hti = (1/q) * (h @ Fxj)
-            Temp = Hti @ cov @ Hti.T + Qt
-            Kti = cov @ Hti.T @ np.linalg.inv(Temp)
+            Hti =  (h @ Fxj)
+            Kti = cov @ Hti.T @ np.linalg.inv((Hti @ cov @ Hti.T + Qt))
 
-            mean = mean + (Kti @ (zi-zi_hat))
+            dzi=zi-zi_hat
+            if dzi[1]<-pi:
+                dzi[1] = dzi[1]+2*pi
+            if dzi[1]>pi:
+                dzi[1] = dzi[1]-2*pi
+            mean = mean + (Kti @ (dzi))
             cov = (np.eye(cov.shape[0]) - Kti @ Hti) @ cov
 
         return mean, cov
-
 
 class Error:
     def __init__(self):
@@ -300,7 +272,13 @@ class Error:
     def update(self,lmks,rob,mean,t):
         self.t.append(t)
         self.error_rob_pos.append(self.sum_sqrt(rob.true_pos[0]-rob.pred_pos[0],rob.true_pos[1]-rob.pred_pos[1]))
-        self.error_rob_angle.append(self.sum_sqrt(rob.true_pos[2]-rob.pred_pos[2]))
+        dtheta =  rob.true_pos[2]-rob.pred_pos[2]
+        if dtheta > pi:
+            dtheta = dtheta-2*pi
+        if dtheta<-pi:
+            dtheta = dtheta+2*pi
+        self.error_rob_angle.append(self.sum_sqrt(dtheta))
+
         temp = 0
         n = 0
         for lmk in lmks:
@@ -314,12 +292,16 @@ class Error:
 
     def plot(self):
         fig, ax = plt.subplots(3,1) 
-        ax[0].plot([t for t in self.t],[e_lmks for e_lmks in self.error_lmk], label='error of lmks',color = 'cornflowerblue')
-        ax[1].plot([t for t in self.t],[e_pos for e_pos in self.error_rob_pos], label='error of rob pos',color = 'cornflowerblue')
-        ax[2].plot([t for t in self.t],[e_ang for e_ang in self.error_rob_angle], label='error of rob angle',color = 'cornflowerblue')
+        ax[0].plot([t for t in self.t],[e_lmks for e_lmks in self.error_lmk], label='lmks position error',color = 'cornflowerblue')
+        ax[1].plot([t for t in self.t],[e_pos for e_pos in self.error_rob_pos], label='robot position error',color = 'cornflowerblue')
+        ax[2].plot([t for t in self.t],[e_ang for e_ang in self.error_rob_angle], label='robot angle error',color = 'cornflowerblue')
+        ax[0].set_ylabel("Error/m")
+        ax[1].set_ylabel("Error/m")
+        ax[2].set_ylabel("Error/rad")
         for axx in ax:
             axx.legend()
             axx.grid()
+            axx.set_xlabel("T/s")
         plt.show()
 
 def lm_from_id(lm_id, lm_list):
@@ -329,26 +311,18 @@ def lm_from_id(lm_id, lm_list):
     return None
 
 
-def performance(pred,N):
-    pred_dict = dict()
-    pred_dict['X'] = pred[0, 0]
-    pred_dict['Y'] = pred[1, 0]
-    pred_dict['THETA'] = pred[2, 0]
-    for n in range(N):
-        pred_dict['LM_' + str(n) + ' X'] = pred[3 + 3 * n, 0]
-        pred_dict['LM_' + str(n) + ' Y'] = pred[4 + 3 * n, 0]
-        pred_dict['LM_' + str(n) + ' ID'] = pred[5 + 3 * n, 0]
-
-    print('PREDICTED STATES')
-    print(pred_dict)
 
 
 def sensor(Qt,states,lm,landmarks):
     #generate Guassian noise,mean=0,standard deviation=0.05
-    rng_noise = np.random.normal(0., Qt[0, 0])
-    ang_noise = np.random.normal(0., Qt[1, 1])
+    rng_noise = np.random.normal(0., sqrt(Qt[0, 0]))
+    ang_noise = np.random.normal(0., sqrt(Qt[1, 1]))
     z_rng = np.sqrt((states[0] - lm.x) ** 2 + (states[1] - lm.y) ** 2) + rng_noise
     z_ang = atan2(lm.y - states[1], lm.x - states[0]) - states[2] + ang_noise
+    if z_ang <-pi:
+        z_ang = z_ang+2*pi
+    if z_ang > pi:
+        z_ang = z_ang-2*pi
     z_j = lm.s
     z = Measurement(z_rng, z_ang, z_j,landmarks)
     return z
@@ -359,32 +333,75 @@ def sensor(Qt,states,lm,landmarks):
 def slam_function():
     DT=0.1
     t = 0.
-    tf = 31.4
     INF = 1000.
-
     lm1 = Landmark(2., 3., 0)
     lm2 = Landmark(13., 13., 1)
     lm3 = Landmark(-5., 12., 2)
-    lm4 = Landmark(-12., 12., 3)
+    #lm4 = Landmark(-13., 12., 3)
+    lm4 = Landmark(-14., 5., 3)
     lm5 = Landmark(0., 25., 4)
     lm6 = Landmark(0.,10,5)
-    lm7 = Landmark(5.,15.,6)
+    lm7 = Landmark(3.,15.,6)
+
+
+    """全圆内    lm1 = Landmark(2., 3., 0)
+    #lm2 = Landmark(13., 13., 1)
+    lm2 = Landmark(8., 13., 1)
+    lm3 = Landmark(-5., 12., 2)
+    #lm4 = Landmark(-13., 12., 3)
+    lm4 = Landmark(-8., 12., 3)
+    #lm5 = Landmark(0., 25., 4)
+    lm5 = Landmark(0., 9., 4)
+    lm6 = Landmark(0.,10,5)
+    lm7 = Landmark(3.,15.,6) """
+  
+    """布局松    lm1 = Landmark(2., 8., 0)
+    lm2 = Landmark(18., 13., 1)
+    lm3 = Landmark(-3., 10., 2)
+    #lm4 = Landmark(-13., 12., 3)
+    lm4 = Landmark(-16., 5., 3)
+    lm5 = Landmark(0., 25., 4)
+    lm6 = Landmark(0.,10,5)
+    lm7 = Landmark(2.,12.,6)"""
+
+    """全圆外     lm1 = Landmark(12., 1., 0)
+    lm2 = Landmark(13., 13., 1)
+    #lm3 = Landmark(-5., -4., 2)
+    lm3 = Landmark(-15., 12.5, 2)
+    lm4 = Landmark(-14., 5., 3)
+    lm5 = Landmark(-8., 22., 4)
+    lm6 = Landmark(-5.,-4,5)
+    #lm7 = Landmark(11.,20.,6)
+    lm7 = Landmark(9.,22.5,6)
+    """
+    """布局紧      lm1 = Landmark(2., 3., 0)
+    lm2 = Landmark(13, 13., 1)
+    lm3 = Landmark(-6, 13, 2)
+    lm4 = Landmark(-12, 5., 3)
+    #lm5 = Landmark(0., 23.5, 4)
+    lm5 = Landmark(0., 22, 4)
+    #lm6 = Landmark(-2.,5,5)
+    lm6 = Landmark(-3.,3,5)
+    lm7 = Landmark(3,18.,6)
+    #lm7 = Landmark(3,15.,6)
+  """
+
     landmarks = [lm1, lm2, lm3, lm4, lm5,lm6,lm7]
     N = len(landmarks)
 
     ekf = EKFSLAM()
     vis = Plotting()
 
-    Rt = .005*np.eye(3)
-    Rt[2,2] = 0.002
-    Qt = .05*np.eye(3)
-    #Qt[2,2] = 0
+    Rt = .03**2*np.eye(3)
+    Qt = .05**2*np.eye(3)
+
 
     rng_max=15
     #initialize robot
     # u velocity of the robot
     v=2
     w=0.2
+    tf = 30
     u = np.array([v, w])
     rob=Robot(u[0],u[1])
 
@@ -392,36 +409,28 @@ def slam_function():
     xr = rob.true_pos.reshape(-1, 1) #to a column vector
     xm = np.zeros((3 * N, 1))
     mean = np.vstack((xr, xm))
-    cov = INF * np.eye(len(mean))
+    cov = 1 * np.eye(len(mean))
     cov[:3, :3] = np.zeros((3, 3))
-    # plt.ion()
 
     error = Error()
+    global observed_lmk
+    observed_lmk = 0
     while t <= tf:
-        #observe
-        zs = []
-        for lm in landmarks:
-            z = sensor(Qt,rob.true_pos,lm,landmarks)
-            if (z.rng<rng_max):
-                zs.append(z)
         #EKF-SLAM algorithm
-        mean, cov = ekf.predict(rob,N,Rt, Qt, mean, cov, u, zs,DT)
+        mean, cov = ekf.predict(rob,N,Rt, Qt,landmarks,rng_max, mean, cov, u, DT)
         #update predicted and true pose
-        rob.pos_update(Rt,DT,mean)
+        rob.pos_update(Rt,DT,mean,1)
         #update data for plotting
-        vis.update(rob.true_pos.flatten().copy(), mean.flatten().copy(), t)# deep copy
+        #vis.update(rob.true_pos.flatten().copy(), mean.flatten().copy(), t)# deep copy
         error.update(landmarks,rob,mean,t)
         t += DT
-
-    # plt.ioff()
-    # plt.show()
-    vis.show(rob,landmarks,mean,cov,N)
+    #vis.show(rob,landmarks,mean,cov,N)
     return error
 
 if __name__ == '__main__':
     start = time.time()
     ave_error = Error()
-    m = 1
+    m = 1000
     for i in range(m):
         error = slam_function()
         if i == 0:
@@ -440,5 +449,5 @@ if __name__ == '__main__':
     duration = end-start
     print(duration)
     print(sum(ave_error.error_rob_pos)/len(ave_error.error_rob_pos))
+    
     ave_error.plot()
-    #print(ave_error)
