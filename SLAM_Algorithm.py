@@ -309,7 +309,7 @@ class Error:
 
     def plot(self,window,ax):
         ax.clear()
-        ax.plot([t for t in self.t],[e_pos for e_pos in self.error_lmk],color = 'cornflowerblue')
+        ax.plot([t for t in self.t],[e_pos for e_pos in self.error_rob_pos],color = 'cornflowerblue')
         ax.grid()
         ax.set_ylabel("Error/m")
         ax.set_xlabel("T/s")

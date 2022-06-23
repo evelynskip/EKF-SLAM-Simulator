@@ -292,7 +292,7 @@ class Error:
 
     def plot(self):
         fig, ax = plt.subplots(3,1) 
-        ax[0].plot([t for t in self.t],[e_lmks for e_lmks in self.error_lmk], label='lmks position error',color = 'cornflowerblue')
+        ax[0].plot([t for t in self.t],[e_lmks for e_lmks in self.error_lmk], label='landmarks position error',color = 'cornflowerblue')
         ax[1].plot([t for t in self.t],[e_pos for e_pos in self.error_rob_pos], label='robot position error',color = 'cornflowerblue')
         ax[2].plot([t for t in self.t],[e_ang for e_ang in self.error_rob_angle], label='robot angle error',color = 'cornflowerblue')
         ax[0].set_ylabel("Error/m")
@@ -344,55 +344,13 @@ def slam_function():
     lm7 = Landmark(3.,15.,6)
 
 
-    """全圆内    lm1 = Landmark(2., 3., 0)
-    #lm2 = Landmark(13., 13., 1)
-    lm2 = Landmark(8., 13., 1)
-    lm3 = Landmark(-5., 12., 2)
-    #lm4 = Landmark(-13., 12., 3)
-    lm4 = Landmark(-8., 12., 3)
-    #lm5 = Landmark(0., 25., 4)
-    lm5 = Landmark(0., 9., 4)
-    lm6 = Landmark(0.,10,5)
-    lm7 = Landmark(3.,15.,6) """
-  
-    """布局松    lm1 = Landmark(2., 8., 0)
-    lm2 = Landmark(18., 13., 1)
-    lm3 = Landmark(-3., 10., 2)
-    #lm4 = Landmark(-13., 12., 3)
-    lm4 = Landmark(-16., 5., 3)
-    lm5 = Landmark(0., 25., 4)
-    lm6 = Landmark(0.,10,5)
-    lm7 = Landmark(2.,12.,6)"""
-
-    """全圆外     lm1 = Landmark(12., 1., 0)
-    lm2 = Landmark(13., 13., 1)
-    #lm3 = Landmark(-5., -4., 2)
-    lm3 = Landmark(-15., 12.5, 2)
-    lm4 = Landmark(-14., 5., 3)
-    lm5 = Landmark(-8., 22., 4)
-    lm6 = Landmark(-5.,-4,5)
-    #lm7 = Landmark(11.,20.,6)
-    lm7 = Landmark(9.,22.5,6)
-    """
-    """布局紧      lm1 = Landmark(2., 3., 0)
-    lm2 = Landmark(13, 13., 1)
-    lm3 = Landmark(-6, 13, 2)
-    lm4 = Landmark(-12, 5., 3)
-    #lm5 = Landmark(0., 23.5, 4)
-    lm5 = Landmark(0., 22, 4)
-    #lm6 = Landmark(-2.,5,5)
-    lm6 = Landmark(-3.,3,5)
-    lm7 = Landmark(3,18.,6)
-    #lm7 = Landmark(3,15.,6)
-  """
-
     landmarks = [lm1, lm2, lm3, lm4, lm5,lm6,lm7]
     N = len(landmarks)
 
     ekf = EKFSLAM()
     vis = Plotting()
 
-    Rt = .03**2*np.eye(3)
+    Rt = .01**2*np.eye(3)
     Qt = .05**2*np.eye(3)
 
 
@@ -430,7 +388,7 @@ def slam_function():
 if __name__ == '__main__':
     start = time.time()
     ave_error = Error()
-    m = 1000
+    m = 100
     for i in range(m):
         error = slam_function()
         if i == 0:
